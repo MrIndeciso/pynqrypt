@@ -43,9 +43,9 @@
 
 \addbibresource{biblio.bib}
 
-\title{\textbf{Example title}}
+\title{\textbf{Pynqrypt: a FPGA-accelerated AES Implementation for PYNQ}}
 
-\author{Group Name\\Author 1, Author 2}
+\author{FPGA101\\Roberto Alessandro Bertolini}
 
 \date{\today}
 
@@ -58,7 +58,6 @@
 	\maketitle
 	\thispagestyle{empty}
 	\vspace*{1cm}
-	\includegraphics[width=4cm]{example.jpg} % qui mettete il vostro logo, o cancellate la linea
 	\vfill
 	\centering
 	\includegraphics{footer.png}
@@ -66,90 +65,79 @@
 
 
 \begin{abstract}
-Enter a short summary here. What topic do you want to investigate and why? What experiment did you perform? What were your main results and conclusion?
+Nowadays cryptography is a fundamental part of our daily life: it is used to protect and ensure the integrity of our data, to authenticate users and to provide secure communications.
+However secure encryption and decryption protocols come at a high cost in terms of computational power required, a requirement which might become a bottleneck in many applications and devices.
+In this report we will analyze how the use of FPGA accelerators can help overcome this problem in some cases, shifting the burden of the cryptographic operations from the CPU to the FPGA.
 \end{abstract}
 
 \section{Introduction} \label{sec:intro}
-Please, be careful about paragraph separation: double backslash (\textbackslash\textbackslash) is used to break the line without spacing, and should be used only to break a single, long paragraph. Instead, to create a new paragraph two line breaks should be used.
+The need of protecting and hiding data has been around for thousands of years, which makes cryptography and cryptoanalysis an especially wide field of study: there are countless algorithms and methods to encrypt and decrypt data, ranging from the classical techniques, like the Caesar cipher, to the modern AES encryption standard, up to the new quantum-secure ciphers.
+\\
+But what makes a good encryption algorithm? The Ceasar cipher, for example, is very easy to implement, but it is just as easy to break, by simply brute-forcing all the possible combinations.
+On the other hand, the one-time-pad is an unbreakable encryption technique, but it is very hard to get right, since the key must be as long as the message itself, never reused, and kept secret by the communicating parties.
+\\
+One of the most widely used encryption algorithms is the Advanced Encryption Standard (AES), which a symmetric-key block cipher, meaning that the same key is used for both encryption and decryption, and that it operates on blocks of a set size, which is 128 bits.
+AES is considered cryptographically secure, as there are known attacks that are able to break it, but they are computationally infeasible and only marginally better than just brute-forcing all the possible key combinations.
 
-This is, for example, a new, properly spaced paragraph (you can see the indentation at the beginning). Remember you can put references to external sources, in particular scientific articles or websites. To cite a source, you need to add the reference to the ``biblio.bib'' file in the Bibtex format, which lists the main information about the source. Since writing a Bibtex reference manually can be long, you can usually find the whole Bibtex reference on the internet, for example in the IEEE or ACM websites. Google is always a good source. In general, the procedure to cite a new source is:
-\begin{enumerate}
-	\item find the Bibtex reference (if any)
-	\item copy or manually write it into the ``biblio.bib'' file
-	\item give it a label you like (in this example, you can see ``vantage'' or ``sandy\_slides''), provided it is \emph{unique}
-	\item use it throughout the text, with the \textbackslash \emph{cite} directive: for example, \cite{vantage} or \cite{sandy_slides}
-\end{enumerate}
-The list of referenced sources will appear at the end of the report.
-
-\section{Section 1} \label{sec:sec1}
-In the following, \cref{eq:exeq} shows an example of equation centered within the page.
-
-\begin{equation}\label{eq:exeq}
-%
-\mbox{maximize} \sum_{i=17}^{31} \sum_{j=i+1}^{32} [ x_{i,j} \times s_{i,j} + (1 - x_{i,j}) \times d_{i,j} ]
-%
-\end{equation}
-
-To type any mathematical expression in the text without breaking the line, you can surround it with the \$ symbol, for example to refer to $i$ and to $ \sum_{j=i+1}^{32} [ x_{i,j} \times s_{i,j} + (1 - x_{i,j}) \times d_{i,j} ] $.
-
-If you need to show code snippets, you can use the \emph{listing} environment, as in the following example. As for the other elements, you can refer to a listing through its label as in \cref{list:exlistings}. Remember to make your code well readable by indenting it and using concise pseudo-code snippets, without pasting your own code as it is (unless it is REALLY expressive and short).
-
-\begin{lstlisting}[label={list:exlistings},caption={Example of code snippet}]
-globaldata: list_head buddies[MAX_ORDER][MAX_COLORS]
-
-procedure InsertBuddy(buddy b, order ord)
-	buddy twin
-	mcolor mcol
-	
-	mcol = Mcolor(b, ord)
-	twin = GetTwinBuddy(b,ord)	
-	if ord < MAX_ORDER-1 AND BuddyIsFree(twin)
-		RemoveFromList(buddies[ord][Mcolor(twin,ord)])
-		b = CoalesceBuddy(b, twin, ord)
-		InsertBuddy(b, ord+1)
-		return
-	else
-		InsertHead(buddies[ord][mcol],b)
-end procedure
-\end{lstlisting}
-
-\subsection{Subsection 1} \label{sec:sub1}
-This is the way to refer to \cref{fig:example}, and similarly for \cref{sec:sec1}.
+\subsection{AES-CTR} \label{subsec:aes-ctr}
+AES-CTR is a mode of operation based on the AES algorithm. It is a stream cipher, meaning that it can encrypt a stream of data of any length (not necessarily a multiple of the block size), and it is based on a counter, which gets incremented at each block encryption.
+A very important property of AES-CTR is that it is higly parallelizable, because each block can be encrypted and decrypted indipendently from the others, just by knowing the counter value of that specific block.
+Another interesting behavior of AES-CTR is that the encryption and decryption operations are exactly the same, so the same code can be shared between the two operations.
+This makes AES-CTR a very good candidate for hardware acceleration, because the same implementation can be reused for both encryption and decryption, and because its parallelizability allows the FPGA to perform better.
 \begin{figure}
 	\centering
-	\includegraphics[width=.7\textwidth]{example.jpg}
-	\caption{Example caption.}
-	\label{fig:example}
+	\includegraphics[width=\textwidth]{CTR_encryption_scheme.png}
+	\caption{AES-CTR requires both a key and a nonce, which is a random value used to initialize the counter. For each block, the counter value is encrypted with the key, and the result is XORed with the plaintext to get the ciphertext. Then the counter is incremented by one.}
 \end{figure}
-You will notice \LaTeX~ freely moves elements like figures and tables around the page, and often in the pages around the current paragraph. In particular, \LaTeX~ always places these elements at the bottom or top of the page (otherwise instructed): this choice obeys to the main typesetting guidelines, and should work well most of the times. You should not force a specific position for these elements, and keep in mind that \textit{\LaTeX~ most of the time is right} (it is its job to do lay out elements, not yours). If you need to move an element, move its \LaTeX~ code up or down.
 
-\subsection{Subsection 2} \label{sec:sub2}
-\Cref{tab:example} provides an example of a table. According to many people, this table style (without vertical lines separating columns) is the most elegant and clean possible; to set this tables style, this document adds the \verb|\usepackage{booktabs}| directive at the beginning. In the \LaTeX~ code, you can notice that an ampersand (\$) separates columns and a double backslash (\verb|\\|) moves to a new line.
+\subsection{The Hardware} \label{subsec:the-hardware}
+The tests were conducted on a PYNQ Z2, an open-source development board for Xilinx Zynq SoCs, which features both a dual-core ARM CPU and a programmable FPGA fabric.
+The CPU runs at 650 MHz and, unlike most modern designs, lacks the AES instruction set extensions, which makes it particularly slow at performing AES operations.
+The FPGA runs at up to 250 MHz and is interconnected with the CPU via a high-speed AXI bus. // TODO doublecheck this
+The board also features 512 Mbytes of DDR3 RAM, with a maximum bandwidth of 1050 Mbps.
+
+\section{Methodology} \label{sec:methodology}
+As the main goal of this project is to evaluate whether the use of an FPGA accelerator can be used to improve the performance of AES-CTR, the CPU and the FPGA were compared by measuring the time required to perform the same operation on the same data and block key.
+As in a real world scenario the data to be encrypted is usually of a variable length, the tests were performed on a set of 4 different data sizes, which are:
+\begin{enumerate}
+	\item 16 bytes (1 block)
+	\item 1024 bytes (64 blocks)
+	\item 256 Kbytes (16 Kblocks)
+	\item 16 Mbytes (1 Mblocks)
+\end{enumerate}
+The time measurements were repeated 10 times for each data size, and the average was then reported.
+\\As the FPGA implementation would be used through the Python API, we chose, for the sake of simplicity and consistency, to use a CPU implementation which featured Python bindings, which would enable use to run the benchmarks in the same environment.
+\\The CPU implementation we chose was the one provided by the PyCryptodome library, which, while exposing a Python API, implements the AES algorithm in C and builds it from source code during the install process.
+\\The FPGA implementation was written using Vitis HLS and the C++ language, and it was then exported as a Vivado IP, which was then loaded as a bitstream through the Pynq framework.
+As one of the main goals of this project was to analyze how targeted optimizations can greatly improve the real world performance of an FPGA implementation, we decided to start from scratch and we wrote a purposedly unoptimized and generic encryption library.
+With each iteration of the design we then added optimizations and targeted features, noting the performance improvements and the changes made.
+To ensure the correctness of the implementation, at each iteration we validated the results against both the previously mentioned PyCryptodome library, and the OpenSSL library, which is widely trusted and used in many applications.
+
+\section{Iterations} \label{sec:iterations}
+
+\subsection{Iteration 1} \label{subsec:iter1}
+The first iteration of the design was a very simple and generic implementation. A few modifications had to be made to the original code, in order to make it compile in Vitis HLS:
+\begin{enumerate}
+	\item All the C++ standard library calls had to be replaced with generic C calls, as the HLS compiler does not support advanced C++ features (like std::copy, which had to be replaced with memcopy).
+	\item The original code defined a class, called Pynqrypt, which contained all the methods needed to perform the encryption and decryption operations. As Vitis HLS can expose only one top-level function as a Vivado IP, we had to write a new function which just instantiates the Pynqrypt object and calls the appropriate method.
+	\item A few interface pragmas had to be added to the previously mentioned function, so that the HLS compiler would know how to properly expose the function arguments in the generated IP.
+// TODO add code example here
+
+This first implementation achieved the following results:
 \begin{table}
-	\caption{Table title (without stop!)}
+	\caption{Iteration 1 results}
 	\centering
-	\begin{tabular}{ccl}
+	\begin{tabular}{ccccc}
 		\toprule
-		\textbf{label0} & \textbf{label1} & \textbf{label2} \\
+		Implementation & 1 block & 64 blocks & 16 Kblocks & 1 Mblock \\
 		\midrule
-		row 0, col 0 & row 0, col 1 & row 0, col 2 \\
-		row 1, col 0 & row 1, col 1 & row 1, col 2 \\ 
-		row 2, col 0 & row 2, col 1 & row 2, col 2 \\ 
-		row 3, col 0 & row 3, col 1 & row 3, col 2 \\
+		CPU & 0.0001 s & 0.0001 s & 0.0001 s & 0.0001 s \\
+		Iteration 1 & 0.0001 s & 0.0001 s & 0.0001 s & 0.0001 s \\
 		\bottomrule
 	\end{tabular}
-	\label{tab:example}
 \end{table}
+\end{enumerate}
 
-Since tables in \LaTeX~ are verbose, you should:
-\begin{itemize}
-\item place them in a specific file, to be included with a \verb|\input{filename}| directive
-\item for large tables, fill them on applications or websites like \url{https://www.tablesgenerator.com/}, then copy their code and paste it in the dedicated file; finally, you can customize the style from the \LaTeX~ code
-\end{itemize}
-
-Here you can see the same table as before but included from an external file \textit{table.tex}: the result is the same.
-%
-\input{table}
 
 \printbibliography
 

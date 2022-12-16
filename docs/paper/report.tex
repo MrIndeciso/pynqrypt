@@ -6,6 +6,7 @@
 \usepackage{amsmath}
 \usepackage{multicol}
 \usepackage{caption}
+\usepackage{pgfplots}
 \usepackage{hyperref}
 \usepackage{graphicx}
 \graphicspath{{./imgs/}}
@@ -105,9 +106,9 @@ As in a real world scenario the data to be encrypted is usually of a variable le
 	\item 256 Kbytes (16 Kblocks)
 	\item 16 Mbytes (1 Mblocks)
 \end{enumerate}
-The time measurements were repeated 10 times for each data size, and the average was then reported.
+The time measurements were repeated 10 times for each data size, and the average was then reported, excluding the highest and the lowest times.
 \\As the FPGA implementation would be used through the Python API, we chose, for the sake of simplicity and consistency, to use a CPU implementation which featured Python bindings, which would enable use to run the benchmarks in the same environment.
-\\The CPU implementation we chose was the one provided by the PyCryptodome library, which, while exposing a Python API, implements the AES algorithm in C and builds it from source code during the install process.
+\\The CPU implementation we chose was the one provided by the PyCryptodome library, which, while exposing a Python API, implements the AES algorithm in C and builds it from source code during the install process, so it should be able to leverage all the available architecture optimizations.
 \\The FPGA implementation was written using Vitis HLS and the C++ language, and it was then exported as a Vivado IP, which was then loaded as a bitstream through the Pynq framework.
 As one of the main goals of this project was to analyze how targeted optimizations can greatly improve the real world performance of an FPGA implementation, we decided to start from scratch and we wrote a purposedly unoptimized and generic encryption library.
 With each iteration of the design we then added optimizations and targeted features, noting the performance improvements and the changes made.
@@ -124,20 +125,41 @@ The first iteration of the design was a very simple and generic implementation. 
 // TODO add code example here
 
 This first implementation achieved the following results:
-\begin{table}
-	\caption{Iteration 1 results}
-	\centering
-	\begin{tabular}{ccccc}
-		\toprule
-		Implementation & 1 block & 64 blocks & 16 Kblocks & 1 Mblock \\
-		\midrule
-		CPU & 0.0001 s & 0.0001 s & 0.0001 s & 0.0001 s \\
-		Iteration 1 & 0.0001 s & 0.0001 s & 0.0001 s & 0.0001 s \\
-		\bottomrule
-	\end{tabular}
-\end{table}
+\input{incremental-tables/iter1.tex}
+
+\subsection{Iteration 5} \label{subsec:iter5}
+Iteration 5 saw a significant improvement in performance, mainly due to the switch from 16-element array of bytes to a 128 bit integer, implemented using the ap\_uint<128> type.
+This change removed the need for a lot of loops in the code, which were previously used to perform bitwise operations on the array elements.
+The downside of this change is that the code is now platform-dependent, as the ap\_uint type is specific to Xilinx FPGAs. Other than that, no further optimizations were made.
+
+\subsection{Iteration 6} \label{subsec:iter6}
+Iteration 6 was the first to outperform the CPU implementation. The gains were achieved by optimizing the main loop function, removing a double copy of the data from the input buffer to the current block state.
+This is due to the fact that ap\_uint internally stores the data little endian, but the AES algorithm expects the data to be big endian, so the data had to be reversed before being encrypted, and then reversed again after the encryption.
+This reversal was previously performed by copying the whole 16-byte block from the input buffer to the local block variable, then looping over it to reverse the endianness.
+Now the reversal is performed by looping over the 16 bytes of the block, and copying them to the local variable in reverse order.
+
+\subsection{Iteration 7} \label{subsec:iter7}
+Iteration 7 saw a big jump in performance. During the AES encryption flow, the block has to be substituted multiple times by performing a byte-by-byte lookup in a 256-element array, which is called the S-box.
+This operation is very expensive, as it requires a lot of memory accesses, and it is also very repetitive, as the same S-box is used multiple times.
+We tried multiple approaches to tackle this problem, but the one that gave the best results was applying an "ARRAY\_RESHAPE" pragma to the array.
+This is an expensive operation, as it increases the memory footprint of the array, but it allows the compiler to optimize the accesses to the array. 
+
+\subsection{Iteration 8} \label{subsec:iter8}
+Applying the same "ARRAY\_RESHAPE" pragma to two other arrays, which are used as lookup tables for fast multiplication, gave a huge performance boost.
+
+\subsection{Iteration 9} \label{subsec:iter9}
+\input{incremental-tables/final-graph.tex}
+
 \end{enumerate}
 
+\section{Results} \label{sec:results}
+We can see from the previous graph that the FPGA implementation is able to vastly outperform the CPU implementation, especially for larger data sizes, with just a bit of tweaking and optimization, and shouldn't increase overhead too much for smaller data sizes.
+The results also show that the performance of the FPGA implementation is somehow bottlonecked by the system, as the throughput doesn't scale linearly when the PL clock was increased.
+We suspect that the culprit is the DDR3 memory, which, as we mentioned before, has a maximum bandwidth of 1050 Mbps. In order to achieve a throughput of 441 Mbps, we actually need to transfer 882 Mbps of data from and to the memory, which is suspiciously close to its maximum bandwidth.
+
+
+\section{Comparison with Other Hardware} \label{sec:conclusions}
+We have successfully proven that the FPGA accelerator is a viable solution for accelerating AES-CTR encryption on the Pynq-Z2 board, 
 
 \printbibliography
 

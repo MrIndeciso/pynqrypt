@@ -94,6 +94,7 @@ The time measurements were repeated 10 times for each data size, and the average
 As a secondary goal of the project was to evaluate how easily a software implementation can be ported to hardware, we decided not to use any of the already existing AES-CTR implementations for the FPGA, but to write our own from scratch, starting from one that would work on the CPU.
 With each iteration of implementation, we tried to improve the hardware performance by optimizing the code, documenting which changes gave a positive or negative impact on the performance.
 To ensure the correctness of the implementation, at each iteration we validated the results against both the previously mentioned PyCryptodome library, and the OpenSSL library, which is widely trusted and used in many applications.
+For brevity, we decided not to include iterations which didn't improve the performance significantly, but they are still documented in the Appendix and can be found in the GitHub repository.
 
 \section{Design Iterations} \label{sec:iterations}
 
@@ -128,7 +129,7 @@ As can be seen from the table, the FPGA implementation is significantly slower "
 Iteration 4 was the last fully cross-platform iteration.
 In terms of optimization, we applied the following changes from Iteration 1:
 \begin{enumerate}
-	\item The functions {\tt Pynqrypt::ctr\_compute\_nonce, Pynqrypt::ctr\_xor\_block, Pynqrypt::aes\_mix\_columns, Pynqrypt::aes\_shift\_rows, Pynqrypt::aes\_sub\_bytes} were inlined, to enable some pipeline optimizations.
+	\item The functions {\tt Pynqrypt::ctr\_compute\_nonce}, {\tt Pynqrypt::ctr\_xor\_block}, {\tt Pynqrypt::aes\_mix\_columns}, {\tt Pynqrypt::aes\_shift\_rows}, \\ {\tt Pynqrypt::aes\_sub\_bytes} were inlined, to enable some pipeline optimizations.
 	\item The loops in the {\tt Pynqrypt::aes\_mix\_columns} and {\tt Pynqrypt::aes\_sub\_bytes} functions were unrolled.
 \end{enumerate}
 
@@ -193,13 +194,50 @@ Now the reversal is performed by looping over the 16 bytes of the block, and cop
 \end{table}
 
 \subsection{Iteration 7} \label{subsec:iter7}
-Iteration 7 saw a big jump in performance. During the AES encryption flow, the block has to be substituted multiple times by performing a byte-by-byte lookup in a 256-element array, which is called the S-box.
-This operation is very expensive, as it requires a lot of memory accesses, and it is also very repetitive, as the same S-box is used multiple times.
-We tried multiple approaches to tackle this problem, but the one that gave the best results was applying an "ARRAY\_RESHAPE" pragma to the array.
-This is an expensive operation, as it increases the memory footprint of the array, but it allows the compiler to optimize the accesses to the array. 
+Iteration 7 saw a big jump in performance. 
+During the AES encryption flow, the 16 byte block has to be "substituted" multiple times by performing a byte-by-byte lookup in a 256-element constant array, which is called the S-box.
+Previously Vitis HLS stored this array in a single BRAM, which meant that the lookup couldn't be performed in parallel, because the BRAM only has a single read port.
+By applying the pragma "ARRAY\_RESHAPE" to the S-box array, we were able to split it into 256 single byte arrays, which occupied a BRAM each. With this change, the lookup can be performed in parallel, and the throughput increases significantly.
+This change comes at no extra cost, because the Pynq board has 630K of fast BRAM available to be used, but in other cases, if no BRAM is available, it will have to be built using LUTs, increasing the IP footprint significantly.
+
+\begin{table}[h!]
+	\centering
+	\begin{tabular}{cccc}
+		\toprule
+		 & CPU & Iteration 6 & Iteration 7 \\
+		\midrule
+		1 block & 0.11 ms & 0.15 ms & 0.16 ms \\
+		64 blocks & 0.21 ms & 0.21 ms & 0.22 ms \\
+		16 Kblocks & 24.52 ms & 24.72 ms & 19.16 ms \\
+		1 Mblocks & 1641.08 ms & 1573.01 ms & 1216.49 ms \\
+		Max throughput & 78 Mbps & 81.37 Mbps & 105.22 Mbps \\
+		\bottomrule
+	\end{tabular}
+	\caption{Comparison between the CPU, Iteration 6 and Iteration 7 on the FPGA}
+\end{table}
 
 \subsection{Iteration 8} \label{subsec:iter8}
-Applying the same "ARRAY\_RESHAPE" pragma to two other arrays, which are used as lookup tables for fast multiplication, gave a huge performance boost.
+More lookup tables are used in the {\tt Pynqrypt::aes\_mix\_columns} function, which is used to perform the MixColumns step of the AES algorithm.
+While lookup tables aren't strictly required in this step, they are used to avoid performing a lot of multiplications over Galois fields, which are computationally expensive.
+The same limitations of the S-box apply here, so we applied the same pragma optimization.
+
+\begin{table}[h!]
+	\centering
+	\begin{tabular}{cccc}
+		\toprule
+		 & CPU & Iteration 7 & Iteration 8 \\
+		\midrule
+		1 block & 0.11 ms & 0.16 ms & 0.16 ms \\
+		64 blocks & 0.21 ms & 0.22 ms & 0.15 ms \\
+		16 Kblocks & 24.52 ms & 19.16 ms & 7.60 ms \\
+		1 Mblocks & 1641.08 ms & 1216.49 ms & 475.91 ms \\
+		Max throughput & 78 Mbps & 105.22 Mbps & 268.96 Mbps \\
+		\bottomrule
+	\end{tabular}
+	\caption{Comparison between the CPU, Iteration 7 and Iteration 8 on the FPGA}
+\end{table}
+
+The FPGA is now more than three times faster than the CPU on the largest data size, which is a huge improvement and would net a perceivable speedup in real-world applications.
 
 \subsection{Iteration 9} \label{subsec:iter9}
 \input{incremental-tables/final-graph.tex}

@@ -11,11 +11,7 @@ all: $(main).pdf
 
 $(main).pdf: $(main).tex $(other_texs)
 	$(LTC) $(main).tex
-ifneq (,$(wildcard ./*.bib))
 	$(BIB) $(main)
-endif
-	$(LTC) $(main).tex
-	$(LTC) $(main).tex
 	$(LTC) $(main).tex
 
 clean:

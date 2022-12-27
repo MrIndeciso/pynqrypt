@@ -101,7 +101,8 @@ The time measurements were repeated 10 times for each data size, and the average
 As a secondary goal of the project was to evaluate how easily a software implementation can be ported to hardware, we decided not to use any of the already existing AES-CTR implementations for the FPGA, but to write our own from scratch, starting from one that would work on the CPU.
 With each iteration of implementation, we tried to improve the hardware performance by optimizing the code, documenting which changes gave a positive or negative impact on the performance.
 To ensure the correctness of the implementation, at each iteration we validated the results against both the previously mentioned PyCryptodome library, and the OpenSSL library, which is widely trusted and used in many applications.
-For brevity, we decided not to include iterations which didn't improve the performance significantly, but they are still documented in the Appendix and can be found in the GitHub repository.
+For brevity, we decided not to include iterations which didn't improve the performance significantly, nor to show code changes, but everything is available in the GitHub repository \footnote{\url{https://github.com/MrIndeciso/pynqrypt}} tagged by iteration version.
+The benchmark results are available in the GitHub repository as well, in a Jupyter notebook \footnote{\url{https://github.com/MrIndeciso/pynqrypt/blob/main/docs/results.ipynb}}.
 
 \section{Design Iterations} \label{sec:iterations}
 

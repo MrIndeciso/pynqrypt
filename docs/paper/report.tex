@@ -1,6 +1,7 @@
 \documentclass[12pt,oneside,a4paper]{article}
 
 \usepackage[backend=biber,style=numeric]{biblatex}
+\usepackage{float}
 \usepackage{xcolor}
 \usepackage{todonotes}
 \usepackage{amsmath}
@@ -23,16 +24,17 @@
 \def\lstlistingcrefname{Algorithm}
 \usepackage{url}
 
+\def\CC{{C\nolinebreak[4]\hspace{-.05em}\raisebox{.4ex}{\tiny\bf ++}}}
+
 \addbibresource{biblio.bib}
 
-\title{\textbf{Pynqrypt: a FPGA-accelerated AES Implementation for PYNQ}}
+\title{\textbf{Pynqrypt: a FPGA-accelerated encryption library for PYNQ}}
 
 \author{FPGA101\\Roberto Alessandro Bertolini}
 
 \date{\today}
 
 \begin{document}
-
 
 \begin{titlepage}
 	\centering
@@ -47,26 +49,31 @@
 
 
 \begin{abstract}
-Nowadays cryptography is a fundamental part of our daily life: it is used to protect and ensure the integrity of our data, to authenticate users and to provide secure communications.
-However secure encryption and decryption protocols come at a high cost in terms of computational power required, a requirement which might become a bottleneck in many applications and devices.
-In this report we will analyze how the use of FPGA accelerators can help overcome this problem in some cases, shifting the burden of the cryptographic operations from the CPU to the FPGA.
+Data encryption and decryption is a computationally expensive task to perform, as most encryption algorithms aren't specifically optimized for running on modern computer architectures.
+In this report we will analyze how a very common algorithm, AES-CTR, can be reimplemented on a FPGA to provide a noticeable improvement in throughput on low-power or embedded devices, shifting most of the operations to the FPGA and thus freeing up the main processor.
+We will also note the various design considerations and the optimizations applied and how much they contributed to the overall improvement in throughput.
 \end{abstract}
 
 \section{Introduction} \label{sec:intro}
-The need of protecting and hiding data has been around for thousands of years, which makes cryptography and cryptoanalysis an especially wide field of study: there are countless algorithms and methods to encrypt and decrypt data, ranging from the classical techniques, like the Caesar cipher, to the modern AES encryption standard, up to the new quantum-secure ciphers.
-\\
-But what makes a good encryption algorithm? The Ceasar cipher, for example, is very easy to implement, but it is just as easy to break, by simply brute-forcing all the possible combinations.
-On the other hand, the one-time-pad is an unbreakable encryption technique, but it is almost never used in practice because it is very hard to implement correctly, since the key must be as long as the message itself, never reused, and kept secret by the communicating parties.
-\\
-One of the most widely used encryption algorithms is the Advanced Encryption Standard (AES), which a symmetric-key block cipher, meaning that the same key is used for both encryption and decryption, and that it operates on blocks of a set size, which is 128 bits.
-AES is considered cryptographically secure, as there are known attacks that are able to break it, but they are all computationally infeasible and only marginally better than just brute-forcing all the possible key combinations.
+Nowadays cryptography is a fundamental part of our daily life: it is used to protect and ensure the integrity of our data, to authenticate users and to provide secure communications.
+However, secure encryption and decryption protocols come at a high cost in terms of computational power required, a requirement which might become a bottleneck in many use cases, especially in low-power and embedded devices where energy efficiency or thermal constraints severely hinder hardware performance.
+\\There are two different categories of cryptographic algorithms: symmetric and asymmetric.
+Symmetric algorithms use the same key for both encryption and decryption, while asymmetric algorithms use a pair of two different keys, one for encryption and one for decryption.
+Asymmetric algorithms are generally used for authentication and key exchange, while symmetric algorithms are used for the actual encryption and decryption of data.
+The most common symmetric algorithm is the Advanced Encryption Standard (AES), which supersed the Data Encryption Standard (DES) in 2001 and became the de facto standard for symmetric encryption.
+
+\subsection{AES} \label{subsec:aes}
+AES is a symmetric block cipher, which means that it encrypts data in blocks of a fixed size, which is 16 bytes (128 bits), with a key of 16, 24 or 32 bytes (128, 192 or 256 bits).
+It is based on a substitution-permutation network: during the encryption process, the block is XORed, shifted, substituted or mixed byte-by-byte multiple times, in a reversible process that is easy to compute but hard to bruteforce without knowledge of the key used.
+Since all of this is done using simple bitwise or mathematical operations, it can be easily implemented on a FPGA, which makes it a perfect candidate for attempting to accelerate this task.
+\\AES only defines the method for encrypting a single block, but it doesn't specify how to chain multiple blocks together, which is the reason why it is usually used in conjunction with a mode of operation, which defines how to encrypt a stream of data.
 
 \subsection{AES-CTR} \label{subsec:aes-ctr}
-AES-CTR is a mode of operation based on the AES algorithm. It is a stream cipher, meaning that it can encrypt a stream of data of any length (not necessarily a multiple of the block size), and it is based on a counter, which gets incremented at each block encryption.
+AES-CTR is a mode of operation based on the AES algorithm. It is a stream cipher, meaning that it can encrypt a stream of data of any length, not necessarily a multiple of the block size, and it is based on a counter, which gets incremented at each block encryption.
 A very important property of AES-CTR is that it is higly parallelizable, because each block can be encrypted and decrypted indipendently from the others, just by knowing the counter value of that specific block.
 Another interesting behavior of AES-CTR is that the encryption and decryption operations are exactly the same, so the same code can be shared between the two operations.
-This makes AES-CTR a very good candidate for hardware acceleration, because the same implementation can be reused for both encryption and decryption, and because its parallelizability allows the FPGA to perform better.
-\begin{figure}
+This makes AES-CTR a very good candidate for hardware acceleration, because the same implementation can be reused for both encryption and decryption, and because its parallelizability is easily exploited by the FPGA.
+\begin{figure}[h!]
 	\centering
 	\includegraphics[width=\textwidth]{CTR_encryption_scheme.png}
 	\caption{AES-CTR requires both a key and a nonce, which is a random value used to initialize the counter. For each block, the counter value is encrypted with the key, and the result is XORed with the plaintext to get the ciphertext. Then the counter is incremented by one. As XOR is its own inverse, the decryption flow is exactly the same. \cite{pic:aes-ctr}}
@@ -90,7 +97,7 @@ As in a real world scenario the data to be encrypted is usually of a variable le
 The time measurements were repeated 10 times for each data size, and the average was then reported, excluding the highest and the lowest times.
 \\As the FPGA implementation would be used through the Python API, we chose, for the sake of simplicity and consistency, to use a CPU implementation which featured Python bindings, which would enable use to run the benchmarks in the same environment one after the other.
 \\The CPU implementation we chose was the one provided by the PyCryptodome library, which, while exposing a Python API, implements the AES algorithm in C and builds it from source code during the install process, so it should be able to leverage all the available architecture optimizations.
-\\The FPGA implementation was written using Vitis HLS and the C++ language, and it was then exported to Vivado as an IP, from which a bitstream was generated and loaded onto the FPGA.
+\\The FPGA implementation was written using Vitis HLS and the \CC language, and it was then exported to Vivado as an IP, from which a bitstream was generated and loaded onto the FPGA.
 As a secondary goal of the project was to evaluate how easily a software implementation can be ported to hardware, we decided not to use any of the already existing AES-CTR implementations for the FPGA, but to write our own from scratch, starting from one that would work on the CPU.
 With each iteration of implementation, we tried to improve the hardware performance by optimizing the code, documenting which changes gave a positive or negative impact on the performance.
 To ensure the correctness of the implementation, at each iteration we validated the results against both the previously mentioned PyCryptodome library, and the OpenSSL library, which is widely trusted and used in many applications.
@@ -101,7 +108,7 @@ For brevity, we decided not to include iterations which didn't improve the perfo
 \subsection{Iteration 1} \label{subsec:iter1}
 The first iteration of the design was a very simple and generic implementation. A few modifications had to be made to the original code, in order to make it compile in Vitis HLS:
 \begin{enumerate}
-	\item All the C++ standard library calls had to be replaced with generic C calls, as the HLS compiler does not support advanced C++ features (like std::copy, which had to be replaced with memcopy).
+	\item All the \CC standard library calls had to be replaced with generic C calls, as the HLS compiler does not support advanced \CC features (like std::copy, which had to be replaced with memcopy).
 	\item The original code defined a class, called Pynqrypt, which contained all the methods needed to perform the encryption and decryption operations. As Vitis HLS can expose only one top-level function as a Vivado IP, we had to write a new function which just instantiates the Pynqrypt object and calls the appropriate method.
 	\item A few interface pragmas had to be added to the previously mentioned function, so that the HLS compiler would know how to properly expose the function arguments in the generated IP.
 \end{enumerate}
@@ -155,7 +162,7 @@ Iteration 5 saw a significant improvement in performance, mainly due to the swit
 This change removed the need for a lot of loops in the code, which were previously used to perform bitwise operations on the array elements.
 The downside of this change is that the code is now platform-dependent, as the ap\_uint type is specific to Xilinx FPGAs, and, as far as we know, closed source. Other than that, no further optimizations were made.
 
-\begin{table}[h!]
+\begin{table}[H]
 	\centering
 	\begin{tabular}{cccc}
 		\toprule

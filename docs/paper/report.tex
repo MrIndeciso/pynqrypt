@@ -50,7 +50,7 @@
 
 \begin{abstract}
 Data encryption and decryption is a computationally expensive task to perform, as most encryption algorithms aren't specifically optimized for running on modern computer architectures.
-In this report we will analyze how a very common algorithm, AES-CTR, can be reimplemented on a FPGA to provide a noticeable improvement in throughput on low-power or embedded devices, shifting most of the operations to the FPGA and thus freeing up the main processor.
+In this report we will analyze how a very common algorithm, AES-CTR, can be reimplemented on an FPGA to provide a noticeable improvement in throughput on low-power or embedded devices, shifting most of the operations to the FPGA and thus freeing up the main processor.
 We will also note the various design considerations and the optimizations applied and how much they contributed to the overall improvement in throughput.
 \end{abstract}
 
@@ -65,18 +65,18 @@ The most common symmetric algorithm is the Advanced Encryption Standard (AES), w
 \subsection{AES} \label{subsec:aes}
 AES \cite{aes:specification} is a symmetric block cipher, which means that it encrypts data in blocks of a fixed size, which is 16 bytes (128 bits), with a key of 16, 24 or 32 bytes (128, 192 or 256 bits).
 It is based on a substitution-permutation network: during the encryption process, the block is XORed, shifted, substituted or mixed byte-by-byte multiple times, in a reversible process that is easy to compute but hard to bruteforce without knowledge of the key used.
-Since all of this is done using simple bitwise or mathematical operations, it can be easily implemented on a FPGA, which makes it a perfect candidate for attempting to accelerate this task.
+Since all of this is done using simple bitwise or mathematical operations, it can be easily ported to an FPGA, making it a perfect target for hardware acceleration.
 \\AES only defines the method for encrypting a single block, but it doesn't specify how to chain multiple blocks together, which is the reason why it is usually used in conjunction with a mode of operation, which defines how to encrypt a stream of data.
 
 \subsection{AES-CTR} \label{subsec:aes-ctr}
 AES-CTR \cite{aes:ctr} is a mode of operation based on the AES algorithm. It is a stream cipher, meaning that it can encrypt a stream of data of any length, not necessarily a multiple of the block size, and it is based on a counter, which gets incremented at each block encryption.
 A very important property of AES-CTR is that it is higly parallelizable, because each block can be encrypted and decrypted indipendently from the others, just by knowing the counter value of that specific block.
 Another interesting behavior of AES-CTR is that the encryption and decryption operations are exactly the same, so the same code can be shared between the two operations.
-This makes AES-CTR a very good candidate for hardware acceleration, because the same implementation can be reused for both encryption and decryption, and because its parallelizability is easily exploited by the FPGA.
+This makes AES-CTR the perfect candidate for hardware acceleration, because the same implementation can be reused for both encryption and decryption, and because its parallelizability is easily exploited by the FPGA.
 \begin{figure}[h!]
 	\centering
 	\includegraphics[width=\textwidth]{CTR_encryption_scheme.png}
-	\caption{AES-CTR requires both a key and a nonce, which is a random value used to initialize the counter. For each block, the counter value is encrypted with the key, and the result is XORed with the plaintext to get the ciphertext. Then the counter is incremented by one. As XOR is its own inverse, the decryption flow is exactly the same. \cite{pic:aes-ctr}}
+	\caption{AES-CTR requires both a key and a nonce, which is a random value used to initialize the counter. For each block, the counter value is encrypted with the key, and the result is XORed with the plaintext to get the ciphertext. Then the counter is incremented by one. As XOR is its own inverse, the decryption flow is exactly the same, but Ciphertext and Plaintext switch places. \cite{pic:aes-ctr}}
 \end{figure}
 
 \subsection{The Hardware} \label{subsec:the-hardware}
@@ -86,8 +86,8 @@ The FPGA runs at a variable frequency up to 250 MHz and is interconnected with t
 The board also features 512 Mbytes of DDR3 RAM, with a maximum bandwidth of 1050 Mbps, an Ethernet port, a microSD card slot, and other peripherals.
 
 \section{Methodology} \label{sec:methodology}
-Since the main goal of this project was to evaluate whether the FPGA is a viable alternative to the CPU when performing cryptography operations with AES-CTR, they were compared by measuring the time they took to perform the same operation on the same data and block key.
-As in a real world scenario the data to be encrypted is usually of a variable length, the tests were performed on a set of 4 different data sizes, which are:
+Since the main goal of this project was to evaluate whether the FPGA is a viable alternative to the CPU when performing cryptographic operations with AES-CTR, the FPGA and the CPU were compared by measuring the time they took to perform the same operation on the same data with the same block key.
+As in a real world scenario the data to be encrypted is usually of variable length, the tests were performed on a set of 4 different data sizes, which are:
 \begin{enumerate}
 	\item 16 bytes (1 block)
 	\item 1024 bytes (64 blocks)
@@ -95,12 +95,12 @@ As in a real world scenario the data to be encrypted is usually of a variable le
 	\item 16 Mbytes (1 Mblocks)
 \end{enumerate}
 The time measurements were repeated 10 times for each data size, and the average was then reported, excluding the highest and the lowest times.
-\\As the FPGA implementation would be used through the Pynq Python API, we chose, for the sake of simplicity and consistency, to use a CPU implementation which featured Python bindings, which would enable us to run the benchmarks in the same environment, one after the other.
-\\The CPU implementation we chose was the one provided by the PyCryptodome library, which, while exposing a Python API, implements the AES algorithm in C and builds it from source code during the install process, so it should be able to leverage all the available architecture optimizations.
-\\The FPGA implementation was written using Vitis HLS and the \CC language, and it was then exported to Vivado as an IP, from which a bitstream was generated and loaded onto the FPGA.
+\\As the FPGA implementation would be used through the Pynq Python API, we chose, for the sake of simplicity and consistency, to use a CPU implementation with Python bindings, which would enable us to run the benchmarks in the same environment, one after the other.
+\\The CPU implementation we chose was the one provided by the PyCryptodome library, which, while exposing a Python API, implements the AES-CTR encryption flow in C and builds it from source code during the install process, so it should be able to leverage all the available architecture optimizations.
+\\The FPGA implementation was written using Vitis HLS and the \CC language, and was then exported to Vivado as an IP, from which a bitstream was generated and downloaded to the FPGA.
 Since a secondary goal of the project was to evaluate how easily a software implementation can be ported to hardware, we decided not to use any of the already existing AES-CTR implementations for the FPGA, but to write our own from scratch, starting from one that would work cross-platform.
-With each iteration of the implementation, we tried to improve the hardware performance by optimizing the code, documenting which changes gave a positive or negative impact on the overall throughput.
-To ensure the correctness of the implementation, at each iteration we validated the results against both the previously mentioned PyCryptodome library, and the OpenSSL library, which is widely trusted and used in many applications.
+With each iteration of our implementation, we tried to improve the hardware performance by optimizing the code, documenting which changes gave a positive or negative impact on the overall throughput.
+To ensure the correctness of our code, at each iteration we validated the results against both the previously mentioned PyCryptodome library, and the OpenSSL library, which is widely trusted and used in many applications.
 For brevity, we decided not to include iterations which didn't improve the performance significantly, nor to show code changes, but everything is available in the GitHub repository \footnote{\url{https://github.com/MrIndeciso/pynqrypt}} tagged by iteration version.
 The benchmark results are available in the GitHub repository as well, in a single Jupyter notebook \footnote{\url{https://github.com/MrIndeciso/pynqrypt/blob/main/docs/results.ipynb}}, along with the source code for the Pynqrypt Python library and the \texttt{PynqryptTester} benchmark class.
 
@@ -109,9 +109,9 @@ The benchmark results are available in the GitHub repository as well, in a singl
 \subsection{Iteration 1} \label{subsec:iter1}
 The first iteration of the design was a very simple and generic implementation. A few modifications had to be made to the original code, in order to make it compile in Vitis HLS:
 \begin{enumerate}
-	\item All the \CC standard library calls had to be replaced with generic C calls, as the HLS compiler does not support advanced \CC features (like \texttt{std::copy}, which had to be replaced with \texttt{memcopy}).
-	\item The original code defined a class, called \texttt{Pynqrypt}, which contained all the methods needed to perform the encryption and decryption operations. As Vitis HLS can expose only one top-level function as a Vivado IP, we had to write a new function which just instantiates the \texttt{Pynqrypt} object and calls the appropriate method.
-	\item A few interface pragmas had to be added to the previously mentioned function, so that the HLS compiler would know how to properly expose the function arguments in the generated IP.
+	\item All the \CC standard library calls had to be replaced with generic C calls, as the HLS compiler does not support advanced \CC features like \texttt{std::copy}, which had to be replaced with \texttt{memcopy}.
+	\item The original code defined a class, called \texttt{Pynqrypt}, which contained all the methods needed to perform the encryption and decryption operations. As Vitis HLS can expose only a single top-level function as a Vivado IP, we had to write a new function which just instantiates the \texttt{Pynqrypt} object and calls the appropriate methods on it before returning.
+	\item A few interface pragmas had to be added to the previously mentioned function, so that the HLS compiler would know how to properly expose the function arguments in the generated IP. We opted for \texttt{m\_axi} ports for the input and output arrays, and \texttt{s\_axilite} ports for all the other arguments, as they don't need a high bandwidth interface.
 \end{enumerate}
 
 This first implementation achieved the following results:
@@ -133,14 +133,14 @@ This first implementation achieved the following results:
 As can be seen from the table, the FPGA implementation is significantly slower "out of the box", most likely due to the fact that the HLS compiler is not able to optimize the code much due to its intentionally generic nature.
 
 \subsection{Iteration 4} \label{subsec:iter4}
-Iteration 4 was the last fully cross-platform iteration.
+This was the last fully cross-platform iteration.
 In terms of optimization, we applied the following changes from Iteration 1:
 \begin{enumerate}
 	\item The functions {\tt Pynqrypt::ctr\_compute\_nonce}, {\tt Pynqrypt::ctr\_xor\_block}, {\tt Pynqrypt::aes\_mix\_columns}, {\tt Pynqrypt::aes\_shift\_rows}, \\ {\tt Pynqrypt::aes\_sub\_bytes} were inlined, to enable some pipeline optimizations.
 	\item The loops in the {\tt Pynqrypt::aes\_mix\_columns} and {\tt Pynqrypt::aes\_sub\_bytes} functions were unrolled.
 \end{enumerate}
 
-These were all minor and cost-free changes, so they didn't have a significant impact on the performance, but it is still worth mentioning them, as they are a good starting point for further optimizations.
+These were all minor changes, so they didn't have a significant impact on the performance, but it is still worth mentioning them, as they are a good starting point for further optimizations and essentially cost-free.
 The results of this iteration are the following:
 \begin{table}[h!]
 	\centering
@@ -177,15 +177,15 @@ The downside of this change is that the code is now platform-dependent, as the a
 	\end{tabular}
 \end{table}
 
-We expected to see a more significant improvement in performance in this iteration: either Vitis HLS was previously able to efficiently pipeline most of the loops, or something else is considerably slowing down the code.
+We expected to see a more significant improvement in performance in this iteration: either Vitis HLS was previously able to efficiently pipeline most of the loops, or something else is considerably slowing down our code.
 
 \subsection{Iteration 6} \label{subsec:iter6}
 Iteration 6 was the first to outperform the CPU implementation. The gains were achieved by optimizing the main loop function, removing a double copy of the data from the input buffer to the current block state.
-This is due to the fact that ap\_uint internally stores the data in little endian format, but the AES algorithm expects the data to be big endian, so the data had to be reversed before being encrypted, and then reversed again after the encryption.
-This reversal was previously performed by copying the whole 16-byte block from the input buffer to the local block variable, then looping over it to reverse the endianness, keeping a temporary variable.
-Now the reversal is performed by looping over the 16 bytes of the block, and copying them to the local variable in reverse order, thereby eliminating the need for the double copy.
+This is due to the fact that ap\_uint internally stores the data in little endian format, but the AES algorithm expects the data to be big endian, so the block has to be reversed byte-by-byte before being encrypted, and then reversed again after the encryption.
+This reversal was previously performed by copying the whole 16-byte block from the input buffer to the current block, then looping over it to reverse the endianness, keeping a temporary byte variable in order to perform the swap.
+Now the reversal is performed by looping over the 16 bytes of the input array, and copying them to the current block in reverse order, thereby eliminating the need for the double copy. The same holds when copying the encrypted block back to the output buffer.
 
-\begin{table}[h!]
+\begin{table}[H]
 	\centering
 	\begin{tabular}{cccc}
 		\toprule
@@ -202,7 +202,7 @@ Now the reversal is performed by looping over the 16 bytes of the block, and cop
 
 \subsection{Iteration 7} \label{subsec:iter7}
 Iteration 7 saw a big jump in performance. 
-During the AES encryption flow, the 16 byte block has to be "substituted" multiple times by performing a byte-by-byte lookup in a 256-element constant array, which is called the S-box.
+During the AES encryption process, the 16 byte block has to be "substituted" multiple times by performing a byte-by-byte lookup in a 256-element constant array, which is called the S-box.
 Previously Vitis HLS stored this array in a single BRAM, which meant that the lookup couldn't be performed in parallel, because the BRAM only has a single read port.
 By applying the pragma "ARRAY\_RESHAPE" to the S-box array, we were able to split it into 256 single byte arrays, which occupy a BRAM each. With this change, the lookup can be performed in parallel, and the throughput increases significantly.
 This change comes at no extra cost, because the Pynq board has 630K of fast BRAM available to be used, but in other devices, where no BRAM is available, it will have to be built using LUTs, increasing the footprint of the IP significantly.
@@ -224,7 +224,7 @@ This change comes at no extra cost, because the Pynq board has 630K of fast BRAM
 
 \subsection{Iteration 8} \label{subsec:iter8}
 More lookup tables are used in the {\tt Pynqrypt::aes\_mix\_columns} function, which is used to perform the MixColumns step of the AES algorithm.
-While lookup tables aren't strictly required in this step, they are used to avoid performing a lot of multiplications over Galois fields, which are computationally expensive.
+While lookup tables aren't strictly required in this step, they are there to avoid performing a lot of multiplications over Galois fields, which are computationally expensive.
 The same limitations of the S-box apply here, so we applied the same pragma optimization.
 
 \begin{table}[h!]
@@ -270,7 +270,7 @@ In a production environment we wouldn't recommend overriding the default clock f
 	\centering
 	\begin{tabular}{cccc}
 		\toprule
-		 & Iter. 9 & Iter. 9 (143 MHz) & Iter. 9 (200 MHz) \\
+		 & Iter. 9 (100 MHz) & Iter. 9 (143 MHz) & Iter. 9 (200 MHz) \\
 		\midrule
 		1 block & 0.15 ms & 0.16 ms & 0.15 ms \\
 		64 blocks & 0.14 ms & 0.15 ms & 0.15 ms \\

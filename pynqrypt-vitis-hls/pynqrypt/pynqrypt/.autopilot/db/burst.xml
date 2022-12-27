@@ -1,4 +1,0 @@
-<VitisHLS:BurstInfo>
-    <burst group="BURST_VERBOSE_MISSED" fe_name="MayExposeInDataFlowRegionMissed" src_info="../hw-impl/src/pynqrypt.cpp:23:32" msg_id="214-117" msg_severity="INFO" msg_body="Skip burst inference for loop 'loop_ctr_encrypt' since access may be exposed into dataflow region" ID="for.inc.load.5" BundleName="gmem" VarName="plaintext" LoopName="loop_ctr_encrypt" ParentFunc="crypto::Pynqrypt::ctr_encrypt(unsigned long, ap_uint&lt;128&gt;*, ap_uint&lt;128&gt;*)"/>
-</VitisHLS:BurstInfo>
-

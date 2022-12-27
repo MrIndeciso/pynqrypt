@@ -1,7 +1,0 @@
-   Build using "/xilinx/Vitis_HLS/2022.2/tps/lnx64/gcc-8.3.0/bin/g++"
-   Compiling apatb_pynqrypt_encrypt.cpp
-   Compiling pynqrypt.cpp_pre.cpp.tb.cpp
-   Compiling pynqrypt_hls.cpp_pre.cpp.tb.cpp
-   Compiling test.cpp_pre.cpp.tb.cpp
-   Compiling apatb_pynqrypt_encrypt_ir.ll
-   Generating cosim.tv.exe

@@ -1,1 +1,0 @@
-set ::AESL_AUTOSIM::gTopFileName /home/mrindeciso/Documents/pynqrypt/pynqrypt-vitis-hls/pynqrypt/pynqrypt/./sim/autowrap/testbench/pynqrypt_hls.cpp_pre.cpp.tb.cpp

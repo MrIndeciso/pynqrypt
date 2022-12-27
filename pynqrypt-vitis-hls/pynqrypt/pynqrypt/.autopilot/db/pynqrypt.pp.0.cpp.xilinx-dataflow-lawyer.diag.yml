@@ -1,8 +1,0 @@
----
-MainSourceFile:  /home/mrindeciso/Documents/pynqrypt/pynqrypt-vitis-hls/pynqrypt/pynqrypt/.autopilot/db/pynqrypt.pp.0.cpp
-Diagnostics:     
-  - DiagnosticName:  clang-diagnostic-warning
-    Message:         '[xlx-df-check-10] Either use an argument of the function or declare the variable inside the dataflow loop body'
-    FileOffset:      '23:32'
-    FilePath:        ../hw-impl/src/pynqrypt.cpp
-...

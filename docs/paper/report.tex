@@ -60,16 +60,16 @@ However, secure encryption and decryption protocols come at a high cost in terms
 \\There are two different categories of cryptographic algorithms: symmetric and asymmetric.
 Symmetric algorithms use the same key for both encryption and decryption, while asymmetric algorithms use a pair of two different keys, one for encryption and one for decryption.
 Asymmetric algorithms are generally used for authentication and key exchange, while symmetric algorithms are used for the actual encryption and decryption of data.
-The most common symmetric algorithm is the Advanced Encryption Standard (AES), which supersed the Data Encryption Standard (DES) in 2001 and became the de facto standard for symmetric encryption.
+The most common symmetric algorithm is the Advanced Encryption Standard (AES), which supersed the Data Encryption Standard (DES) in 2001 and became the de facto standard for symmetric encryption \cite{aes:development}.
 
 \subsection{AES} \label{subsec:aes}
-AES is a symmetric block cipher, which means that it encrypts data in blocks of a fixed size, which is 16 bytes (128 bits), with a key of 16, 24 or 32 bytes (128, 192 or 256 bits).
+AES \cite{aes:specification} is a symmetric block cipher, which means that it encrypts data in blocks of a fixed size, which is 16 bytes (128 bits), with a key of 16, 24 or 32 bytes (128, 192 or 256 bits).
 It is based on a substitution-permutation network: during the encryption process, the block is XORed, shifted, substituted or mixed byte-by-byte multiple times, in a reversible process that is easy to compute but hard to bruteforce without knowledge of the key used.
 Since all of this is done using simple bitwise or mathematical operations, it can be easily implemented on a FPGA, which makes it a perfect candidate for attempting to accelerate this task.
 \\AES only defines the method for encrypting a single block, but it doesn't specify how to chain multiple blocks together, which is the reason why it is usually used in conjunction with a mode of operation, which defines how to encrypt a stream of data.
 
 \subsection{AES-CTR} \label{subsec:aes-ctr}
-AES-CTR is a mode of operation based on the AES algorithm. It is a stream cipher, meaning that it can encrypt a stream of data of any length, not necessarily a multiple of the block size, and it is based on a counter, which gets incremented at each block encryption.
+AES-CTR \cite{aes:ctr} is a mode of operation based on the AES algorithm. It is a stream cipher, meaning that it can encrypt a stream of data of any length, not necessarily a multiple of the block size, and it is based on a counter, which gets incremented at each block encryption.
 A very important property of AES-CTR is that it is higly parallelizable, because each block can be encrypted and decrypted indipendently from the others, just by knowing the counter value of that specific block.
 Another interesting behavior of AES-CTR is that the encryption and decryption operations are exactly the same, so the same code can be shared between the two operations.
 This makes AES-CTR a very good candidate for hardware acceleration, because the same implementation can be reused for both encryption and decryption, and because its parallelizability is easily exploited by the FPGA.
@@ -81,7 +81,7 @@ This makes AES-CTR a very good candidate for hardware acceleration, because the 
 
 \subsection{The Hardware} \label{subsec:the-hardware}
 The tests were conducted on a PYNQ Z2, an open-source development board for Xilinx Zynq SoCs, which features both a dual-core ARM CPU and a programmable FPGA fabric.
-The CPU runs at 650 MHz and, unlike most modern designs, lacks the AES instruction set extensions, which makes it particularly slow at performing AES operations.
+The CPU runs at 650 MHz and, unlike most modern designs, lacks the AES instruction set extensions \cite {aes:arm-extensions}, which makes it particularly slow at performing AES operations.
 The FPGA runs at a variable frequency up to 250 MHz and is interconnected with the CPU via a high-speed AXI bus.
 The board also features 512 Mbytes of DDR3 RAM, with a maximum bandwidth of 1050 Mbps, an Ethernet port, a microSD card slot, and other peripherals.
 
@@ -127,7 +127,6 @@ This first implementation achieved the following results:
 		Max throughput & 78 Mbps & 29.54 Mbps \\
 		\bottomrule
 	\end{tabular}
-	\caption{Comparison between the CPU and Iteration 1 on the FPGA}
 \end{table}
 
 As can be seen from the table, the FPGA implementation is significantly slower "out of the box", most likely due to the fact that the HLS compiler is not able to optimize the code much, due to the generic nature of the implementation.  
@@ -154,7 +153,6 @@ These were all minor and cost-free changes, so they didn't have a significant im
 		Max throughput & 78 Mbps & 29.54 Mbps & 43.71 Mbps \\
 		\bottomrule
 	\end{tabular}
-	\caption{Comparison between the CPU, Iteration 1 and Iteration 4 on the FPGA}
 \end{table}
 
 \subsection{Iteration 5} \label{subsec:iter5}
@@ -175,7 +173,6 @@ The downside of this change is that the code is now platform-dependent, as the a
 		Max throughput & 78 Mbps & 43.71 Mbps & 60.73 Mbps \\
 		\bottomrule
 	\end{tabular}
-	\caption{Comparison between the CPU, Iteration 4 and Iteration 5 on the FPGA}
 \end{table}
 
 \subsection{Iteration 6} \label{subsec:iter6}
@@ -197,7 +194,6 @@ Now the reversal is performed by looping over the 16 bytes of the block, and cop
 		Max throughput & 78 Mbps & 60.73 Mbps & 81.37 Mbps \\
 		\bottomrule
 	\end{tabular}
-	\caption{Comparison between the CPU, Iteration 5 and Iteration 6 on the FPGA}
 \end{table}
 
 \subsection{Iteration 7} \label{subsec:iter7}
@@ -205,7 +201,7 @@ Iteration 7 saw a big jump in performance.
 During the AES encryption flow, the 16 byte block has to be "substituted" multiple times by performing a byte-by-byte lookup in a 256-element constant array, which is called the S-box.
 Previously Vitis HLS stored this array in a single BRAM, which meant that the lookup couldn't be performed in parallel, because the BRAM only has a single read port.
 By applying the pragma "ARRAY\_RESHAPE" to the S-box array, we were able to split it into 256 single byte arrays, which occupied a BRAM each. With this change, the lookup can be performed in parallel, and the throughput increases significantly.
-This change comes at no extra cost, because the Pynq board has 630K of fast BRAM available to be used, but in other cases, if no BRAM is available, it will have to be built using LUTs, increasing the IP footprint significantly.
+This change comes at no extra cost, because the Pynq board has 630K of fast BRAM available to be used, but in other devices, if no BRAM is available, it will have to be built using LUTs, increasing the IP footprint significantly.
 
 \begin{table}[h!]
 	\centering
@@ -220,7 +216,6 @@ This change comes at no extra cost, because the Pynq board has 630K of fast BRAM
 		Max throughput & 78 Mbps & 81.37 Mbps & 105.22 Mbps \\
 		\bottomrule
 	\end{tabular}
-	\caption{Comparison between the CPU, Iteration 6 and Iteration 7 on the FPGA}
 \end{table}
 
 \subsection{Iteration 8} \label{subsec:iter8}
@@ -241,21 +236,72 @@ The same limitations of the S-box apply here, so we applied the same pragma opti
 		Max throughput & 78 Mbps & 105.22 Mbps & 268.96 Mbps \\
 		\bottomrule
 	\end{tabular}
-	\caption{Comparison between the CPU, Iteration 7 and Iteration 8 on the FPGA}
 \end{table}
 
 The FPGA is now more than three times faster than the CPU on the largest data size, which is a huge improvement and would net a perceivable speedup in real-world applications.
 
 \subsection{Iteration 9} \label{subsec:iter9}
-\input{incremental-tables/final-graph.tex}
+For the last iteration we manually unrolled \texttt{Pynqrypt::aes\_sub\_bytes} just for the last encryption round, enabling some additional pipelining.
+Having reached a result we were satisfied with, we decided to stop optimizing the code and we moved on to raising the clock frequency of the PL.
+Even though Vitis HLS reported a maximum design frequency of around 136 MHz, we found the IP to be stable up to 200 MHz, a 100\% increase in clock frequency from the default settings.
+We decided not test the IP at the maximum supported frequency of 250 MHz because our aim was not to push the limits of the hardware, but to observe how the performance scaled with the clock frequency.
+In a production environment we wouldn't recommend overriding the default clock frequency without adequate characterization of the IP, as it could lead to unexpected behavior.
+
+\begin{table}[h!]
+	\centering
+	\begin{tabular}{cccc}
+		\toprule
+		 & CPU & Iteration 8 & Iteration 9 \\
+		\midrule
+		1 block & 0.11 ms & 0.16 ms & 0.15 ms \\
+		64 blocks & 0.21 ms & 0.15 ms & 0.14 ms \\
+		16 Kblocks & 24.52 ms & 7.60 ms & 6.80 ms \\
+		1 Mblocks & 1641.08 ms & 475.91 ms & 427.36 ms \\
+		Max throughput & 78 Mbps & 268.96 Mbps & 299.51 Mbps \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+\begin{table}[h!]
+	\centering
+	\begin{tabular}{cccc}
+		\toprule
+		 & Iter. 9 & Iter. 9 (143 MHz) & Iter. 9 (200 MHz) \\
+		\midrule
+		1 block & 0.15 ms & 0.16 ms & 0.15 ms \\
+		64 blocks & 0.14 ms & 0.15 ms & 0.15 ms \\
+		16 Kblocks & 6.80 ms & 5.44 ms & 4.66 ms \\
+		1 Mblocks & 427.36 ms & 338.40 ms & 290.04 ms \\
+		Max throughput & 299.51 Mbps & 378.25 Mbps & 441.31 Mbps \\
+		\bottomrule
+	\end{tabular}
+\end{table}
 
 \section{Results} \label{sec:results}
-We can see from the previous graph that the FPGA implementation is able to vastly outperform the CPU implementation, especially for larger data sizes, with just a bit of tweaking and optimization, and shouldn't increase overhead too much for smaller data sizes.
-The results also show that the performance of the FPGA implementation is somehow bottlonecked by the system, as the throughput doesn't scale linearly when the PL clock was increased.
-We suspect that the culprit is the DDR3 memory, which, as we mentioned before, has a maximum bandwidth of 1050 Mbps. In order to achieve a throughput of 441 Mbps, we actually need to transfer 882 Mbps of data from and to the memory, which is suspiciously close to its maximum bandwidth.
+We can see from the previous graph that the FPGA implementation is able to vastly outperform the CPU implementation, especially for larger data sizes, with just a bit of tweaking and optimization, while inflicting only a small penalty for the smallest data size.
+The results also show that the performance of the FPGA implementation is somehow bottlonecked by the system, as the throughput doesn't scale linearly with the increase in PL clock frequency.
+We suspect that the culprit is the DDR3 memory, which, as we mentioned before, has a maximum bandwidth of 1050 Mbps. In order to achieve a throughput of 441 Mbps, we actually need to transfer data at a speed of 882 Mbps from and to the memory, which is close to the maximum bandwidth.
 
 \section{Comparison with Other Hardware} \label{sec:conclusions}
-We have successfully proven that the FPGA accelerator is a viable solution for accelerating AES-CTR encryption on the Pynq-Z2 board, but our hardware choice was particularly unfavourable to 
+We have successfully proven that the FPGA accelerator is a viable solution for accelerating AES-CTR encryption on the Pynq-Z2 board, but our hardware choice was particularly favourable for this task.
+Modern x86\_64 and ARM CPUs have specific hardware instructions for performing AES encryption (\texttt{AES-NI} \cite{aes:aes-ni} o x86\_64 and \texttt{Cryptography Extensions} \cite{aes:arm-extensions} on ARM), which are orders of magnitude faster than the software implementation and much faster than our FPGA implementation.
+
+\begin{table}[h!]
+	\centering
+	\begin{tabular}{cccc}
+		\toprule
+		 & Iter. 9 (200 MHz) & Ryzen 3 5300U \\
+		\midrule
+		1 block & 0.15 ms & 0.01 ms \\
+		64 blocks & 0.15 ms & 0.01 ms \\
+		16 Kblocks & 4.66 ms & 0.33 ms \\
+		1 Mblocks & 290.04 ms & 22.45 ms \\
+		Max throughput & 441.31 Mbps & 5.94 Gbps \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+As we can see our FPGA is of no use in this scenario, but it is still a viable solution for other applications, such as embedded systems where the CPU is not powerful enough to perform the encryption in software, or where the CPU is already busy with other tasks.
 
 \printbibliography
 

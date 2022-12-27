@@ -36,5 +36,5 @@ for size in [16, 1024, 256 * 1024, 16 * 1024 * 1024]:
     diff_cpu.sort()
     res_cpu = sum(diff_cpu[1:-1]) / 8e9
     print(f'Results for size {size} bytes:')
-    print(f'CPU: {res_cpu:.2f} ms')
+    print(f'CPU: {res_cpu * 1000:.2f} ms')
     print(f'CPU Throughput: ' + pretty_print_speed(size / res_cpu))

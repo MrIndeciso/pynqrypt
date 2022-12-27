@@ -86,7 +86,7 @@ The FPGA runs at a variable frequency up to 250 MHz and is interconnected with t
 The board also features 512 Mbytes of DDR3 RAM, with a maximum bandwidth of 1050 Mbps, an Ethernet port, a microSD card slot, and other peripherals.
 
 \section{Methodology} \label{sec:methodology}
-Since the main goal of this project was to evaluate whether the use of an FPGA accelerator can be used to improve the performance of AES-CTR, the CPU and the FPGA were compared by measuring the time they took to perform the same operation on the same data and block key.
+Since the main goal of this project was to evaluate whether the FPGA is a viable alternative to the CPU when performing cryptography operations with AES-CTR, they were compared by measuring the time they took to perform the same operation on the same data and block key.
 As in a real world scenario the data to be encrypted is usually of a variable length, the tests were performed on a set of 4 different data sizes, which are:
 \begin{enumerate}
 	\item 16 bytes (1 block)
@@ -95,22 +95,22 @@ As in a real world scenario the data to be encrypted is usually of a variable le
 	\item 16 Mbytes (1 Mblocks)
 \end{enumerate}
 The time measurements were repeated 10 times for each data size, and the average was then reported, excluding the highest and the lowest times.
-\\As the FPGA implementation would be used through the Python API, we chose, for the sake of simplicity and consistency, to use a CPU implementation which featured Python bindings, which would enable use to run the benchmarks in the same environment one after the other.
+\\As the FPGA implementation would be used through the Pynq Python API, we chose, for the sake of simplicity and consistency, to use a CPU implementation which featured Python bindings, which would enable us to run the benchmarks in the same environment, one after the other.
 \\The CPU implementation we chose was the one provided by the PyCryptodome library, which, while exposing a Python API, implements the AES algorithm in C and builds it from source code during the install process, so it should be able to leverage all the available architecture optimizations.
 \\The FPGA implementation was written using Vitis HLS and the \CC language, and it was then exported to Vivado as an IP, from which a bitstream was generated and loaded onto the FPGA.
-As a secondary goal of the project was to evaluate how easily a software implementation can be ported to hardware, we decided not to use any of the already existing AES-CTR implementations for the FPGA, but to write our own from scratch, starting from one that would work on the CPU.
-With each iteration of implementation, we tried to improve the hardware performance by optimizing the code, documenting which changes gave a positive or negative impact on the performance.
+Since a secondary goal of the project was to evaluate how easily a software implementation can be ported to hardware, we decided not to use any of the already existing AES-CTR implementations for the FPGA, but to write our own from scratch, starting from one that would work cross-platform.
+With each iteration of the implementation, we tried to improve the hardware performance by optimizing the code, documenting which changes gave a positive or negative impact on the overall throughput.
 To ensure the correctness of the implementation, at each iteration we validated the results against both the previously mentioned PyCryptodome library, and the OpenSSL library, which is widely trusted and used in many applications.
 For brevity, we decided not to include iterations which didn't improve the performance significantly, nor to show code changes, but everything is available in the GitHub repository \footnote{\url{https://github.com/MrIndeciso/pynqrypt}} tagged by iteration version.
-The benchmark results are available in the GitHub repository as well, in a Jupyter notebook \footnote{\url{https://github.com/MrIndeciso/pynqrypt/blob/main/docs/results.ipynb}}.
+The benchmark results are available in the GitHub repository as well, in a single Jupyter notebook \footnote{\url{https://github.com/MrIndeciso/pynqrypt/blob/main/docs/results.ipynb}}, along with the source code for the Pynqrypt Python library and the \texttt{PynqryptTester} benchmark class.
 
 \section{Design Iterations} \label{sec:iterations}
 
 \subsection{Iteration 1} \label{subsec:iter1}
 The first iteration of the design was a very simple and generic implementation. A few modifications had to be made to the original code, in order to make it compile in Vitis HLS:
 \begin{enumerate}
-	\item All the \CC standard library calls had to be replaced with generic C calls, as the HLS compiler does not support advanced \CC features (like std::copy, which had to be replaced with memcopy).
-	\item The original code defined a class, called Pynqrypt, which contained all the methods needed to perform the encryption and decryption operations. As Vitis HLS can expose only one top-level function as a Vivado IP, we had to write a new function which just instantiates the Pynqrypt object and calls the appropriate method.
+	\item All the \CC standard library calls had to be replaced with generic C calls, as the HLS compiler does not support advanced \CC features (like \texttt{std::copy}, which had to be replaced with \texttt{memcopy}).
+	\item The original code defined a class, called \texttt{Pynqrypt}, which contained all the methods needed to perform the encryption and decryption operations. As Vitis HLS can expose only one top-level function as a Vivado IP, we had to write a new function which just instantiates the \texttt{Pynqrypt} object and calls the appropriate method.
 	\item A few interface pragmas had to be added to the previously mentioned function, so that the HLS compiler would know how to properly expose the function arguments in the generated IP.
 \end{enumerate}
 
@@ -130,7 +130,7 @@ This first implementation achieved the following results:
 	\end{tabular}
 \end{table}
 
-As can be seen from the table, the FPGA implementation is significantly slower "out of the box", most likely due to the fact that the HLS compiler is not able to optimize the code much, due to the generic nature of the implementation.  
+As can be seen from the table, the FPGA implementation is significantly slower "out of the box", most likely due to the fact that the HLS compiler is not able to optimize the code much due to its intentionally generic nature.
 
 \subsection{Iteration 4} \label{subsec:iter4}
 Iteration 4 was the last fully cross-platform iteration.
@@ -140,7 +140,8 @@ In terms of optimization, we applied the following changes from Iteration 1:
 	\item The loops in the {\tt Pynqrypt::aes\_mix\_columns} and {\tt Pynqrypt::aes\_sub\_bytes} functions were unrolled.
 \end{enumerate}
 
-These were all minor and cost-free changes, so they didn't have a significant impact on the performance, as can be seen from the results:
+These were all minor and cost-free changes, so they didn't have a significant impact on the performance, but it is still worth mentioning them, as they are a good starting point for further optimizations.
+The results of this iteration are the following:
 \begin{table}[h!]
 	\centering
 	\begin{tabular}{cccc}
@@ -176,11 +177,13 @@ The downside of this change is that the code is now platform-dependent, as the a
 	\end{tabular}
 \end{table}
 
+We expected to see a more significant improvement in performance in this iteration: either Vitis HLS was previously able to efficiently pipeline most of the loops, or something else is considerably slowing down the code.
+
 \subsection{Iteration 6} \label{subsec:iter6}
 Iteration 6 was the first to outperform the CPU implementation. The gains were achieved by optimizing the main loop function, removing a double copy of the data from the input buffer to the current block state.
 This is due to the fact that ap\_uint internally stores the data in little endian format, but the AES algorithm expects the data to be big endian, so the data had to be reversed before being encrypted, and then reversed again after the encryption.
-This reversal was previously performed by copying the whole 16-byte block from the input buffer to the local block variable, then looping over it to reverse the endianness.
-Now the reversal is performed by looping over the 16 bytes of the block, and copying them to the local variable in reverse order.
+This reversal was previously performed by copying the whole 16-byte block from the input buffer to the local block variable, then looping over it to reverse the endianness, keeping a temporary variable.
+Now the reversal is performed by looping over the 16 bytes of the block, and copying them to the local variable in reverse order, thereby eliminating the need for the double copy.
 
 \begin{table}[h!]
 	\centering
@@ -201,8 +204,8 @@ Now the reversal is performed by looping over the 16 bytes of the block, and cop
 Iteration 7 saw a big jump in performance. 
 During the AES encryption flow, the 16 byte block has to be "substituted" multiple times by performing a byte-by-byte lookup in a 256-element constant array, which is called the S-box.
 Previously Vitis HLS stored this array in a single BRAM, which meant that the lookup couldn't be performed in parallel, because the BRAM only has a single read port.
-By applying the pragma "ARRAY\_RESHAPE" to the S-box array, we were able to split it into 256 single byte arrays, which occupied a BRAM each. With this change, the lookup can be performed in parallel, and the throughput increases significantly.
-This change comes at no extra cost, because the Pynq board has 630K of fast BRAM available to be used, but in other devices, if no BRAM is available, it will have to be built using LUTs, increasing the IP footprint significantly.
+By applying the pragma "ARRAY\_RESHAPE" to the S-box array, we were able to split it into 256 single byte arrays, which occupy a BRAM each. With this change, the lookup can be performed in parallel, and the throughput increases significantly.
+This change comes at no extra cost, because the Pynq board has 630K of fast BRAM available to be used, but in other devices, where no BRAM is available, it will have to be built using LUTs, increasing the footprint of the IP significantly.
 
 \begin{table}[h!]
 	\centering
@@ -244,7 +247,7 @@ The FPGA is now more than three times faster than the CPU on the largest data si
 \subsection{Iteration 9} \label{subsec:iter9}
 For the last iteration we manually unrolled \texttt{Pynqrypt::aes\_sub\_bytes} just for the last encryption round, enabling some additional pipelining.
 Having reached a result we were satisfied with, we decided to stop optimizing the code and we moved on to raising the clock frequency of the PL.
-Even though Vitis HLS reported a maximum design frequency of around 136 MHz, we found the IP to be stable up to 200 MHz, a 100\% increase in clock frequency from the default settings.
+Even though Vitis HLS reported an estimated maximum design frequency of around 136 MHz, we found the IP to be stable up to 200 MHz, which is double the base frequency of the PL.
 We decided not test the IP at the maximum supported frequency of 250 MHz because our aim was not to push the limits of the hardware, but to observe how the performance scaled with the clock frequency.
 In a production environment we wouldn't recommend overriding the default clock frequency without adequate characterization of the IP, as it could lead to unexpected behavior.
 
@@ -278,13 +281,15 @@ In a production environment we wouldn't recommend overriding the default clock f
 	\end{tabular}
 \end{table}
 
+We expected the throughput to scale linearly with the clock frequency, but the results show that the throughput actually increases at a slower rate than the clock frequency
+
 \section{Results} \label{sec:results}
-We can see from the previous graph that the FPGA implementation is able to vastly outperform the CPU implementation, especially for larger data sizes, with just a bit of tweaking and optimization, while inflicting only a small penalty for the smallest data size.
-The results also show that the performance of the FPGA implementation is somehow bottlonecked by the system, as the throughput doesn't scale linearly with the increase in PL clock frequency.
-We suspect that the culprit is the DDR3 memory, which, as we mentioned before, has a maximum bandwidth of 1050 Mbps. In order to achieve a throughput of 441 Mbps, we actually need to transfer data at a speed of 882 Mbps from and to the memory, which is close to the maximum bandwidth.
+We can see from the previous graph that the final iteration is able to vastly outperform the CPU implementation, especially for larger data sizes, with just a bit of tweaking and optimization, while causing only a small latency penalty for the smallest data size.
+The results also show that the performance of the FPGA implementation is somehow bottlenecked by the system, as the throughput doesn't scale linearly with the increase in PL clock frequency.
+We suspect that the culprit is the DDR3 memory, which, as we mentioned before, has a maximum bandwidth of 1050 Mbps. In order to achieve a throughput of 441 Mbps, we actually need to transfer data at a speed of 882 Mbps from and to the memory, which is close to that maximum bandwidth.
 
 \section{Comparison with Other Hardware} \label{sec:conclusions}
-We have successfully proven that the FPGA accelerator is a viable solution for accelerating AES-CTR encryption on the Pynq-Z2 board, but our hardware choice was particularly favourable for this task.
+We have successfully proven that the FPGA accelerator is a viable solution for accelerating AES-CTR encryption on the PYNQ Z2 board, but our hardware choice was particularly favourable to the aim of this report.
 Modern x86\_64 and ARM CPUs have specific hardware instructions for performing AES encryption (\texttt{AES-NI} \cite{aes:aes-ni} o x86\_64 and \texttt{Cryptography Extensions} \cite{aes:arm-extensions} on ARM), which are orders of magnitude faster than the software implementation and much faster than our FPGA implementation.
 
 \begin{table}[h!]

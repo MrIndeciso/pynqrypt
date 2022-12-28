@@ -71,8 +71,8 @@ Since all of this is done using simple bitwise or mathematical operations, it ca
 \subsection{AES-CTR} \label{subsec:aes-ctr}
 AES-CTR \cite{aes:ctr} is a mode of operation based on the AES algorithm. It is a stream cipher, meaning that it can encrypt a stream of data of any length, not necessarily a multiple of the block size, and it is based on a counter, which gets incremented at each block encryption.
 A very important property of AES-CTR is that it is higly parallelizable, because each block can be encrypted and decrypted indipendently from the others, just by knowing the counter value of that specific block.
-Another interesting behavior of AES-CTR is that the encryption and decryption operations are exactly the same, so the same code can be shared between the two operations.
-This makes AES-CTR the perfect candidate for hardware acceleration, because the same implementation can be reused for both encryption and decryption, and because its parallelizability is easily exploited by the FPGA.
+Another interesting behavior of AES-CTR is that the encryption and decryption operations are exactly the same, so the same code can be shared between the two.
+This makes AES-CTR the perfect candidate for hardware acceleration, because the same IP can be reused for both encryption and decryption, and because its parallelizability is easily exploited by the FPGA.
 \begin{figure}[h!]
 	\centering
 	\includegraphics[width=\textwidth]{CTR_encryption_scheme.png}
@@ -95,10 +95,10 @@ As in a real world scenario the data to be encrypted is usually of variable leng
 	\item 16 Mbytes (1 Mblocks)
 \end{enumerate}
 The time measurements were repeated 10 times for each data size, and the average was then reported, excluding the highest and the lowest times.
-\\As the FPGA implementation would be used through the Pynq Python API, we chose, for the sake of simplicity and consistency, to use a CPU implementation with Python bindings, which would enable us to run the benchmarks in the same environment, one after the other.
-\\The CPU implementation we chose was the one provided by the PyCryptodome library, which, while exposing a Python API, implements the AES-CTR encryption flow in C and builds it from source code during the install process, so it should be able to leverage all the available architecture optimizations.
+\\As the FPGA IP would be used through the PYNQ Python API, we chose, for the sake of simplicity and consistency, to use a CPU implementation with Python bindings, which would enable us to run the benchmarks in the same environment, one after the other.
+\\We chose the one provided by the PyCryptodome library, which, while exposing a Python API, implements the AES-CTR encryption flow in C and builds it from source code during the install process, so it should be able to leverage all the available architecture optimizations.
 \\The FPGA implementation was written using Vitis HLS and the \CC language, and was then exported to Vivado as an IP, from which a bitstream was generated and downloaded to the FPGA.
-Since a secondary goal of the project was to evaluate how easily a software implementation can be ported to hardware, we decided not to use any of the already existing AES-CTR implementations for the FPGA, but to write our own from scratch, starting from one that would work cross-platform.
+Since a secondary goal of the project was to evaluate how easily a software implementation can be ported to hardware, we decided not to use any of the already existing AES-CTR libraries for the FPGA, but to write our own from scratch, starting from one that would work cross-platform.
 With each iteration of our implementation, we tried to improve the hardware performance by optimizing the code, documenting which changes gave a positive or negative impact on the overall throughput.
 To ensure the correctness of our code, at each iteration we validated the results against both the previously mentioned PyCryptodome library, and the OpenSSL library, which is widely trusted and used in many applications.
 For brevity, we decided not to include iterations which didn't improve the performance significantly, nor to show code changes, but everything is available in the GitHub repository \footnote{\url{https://github.com/MrIndeciso/pynqrypt}} tagged by iteration version.
@@ -107,9 +107,9 @@ The benchmark results are available in the GitHub repository as well, in a singl
 \section{Design Iterations} \label{sec:iterations}
 
 \subsection{Iteration 1} \label{subsec:iter1}
-The first iteration of the design was a very simple and generic implementation. A few modifications had to be made to the original code, in order to make it compile in Vitis HLS:
+The first iteration of the design was very simple and intentionally generic. A few modifications had to be made to the original code, in order to make it compile in Vitis HLS:
 \begin{enumerate}
-	\item All the \CC standard library calls had to be replaced with generic C calls, as the HLS compiler does not support advanced \CC features like \texttt{std::copy}, which had to be replaced with \texttt{memcopy}.
+	\item All the \CC standard library calls had to be replaced with C calls, as the HLS compiler does not support advanced \CC features like \texttt{std::copy}, which had to be replaced with \texttt{memcopy}.
 	\item The original code defined a class, called \texttt{Pynqrypt}, which contained all the methods needed to perform the encryption and decryption operations. As Vitis HLS can expose only a single top-level function as a Vivado IP, we had to write a new function which just instantiates the \texttt{Pynqrypt} object and calls the appropriate methods on it before returning.
 	\item A few interface pragmas had to be added to the previously mentioned function, so that the HLS compiler would know how to properly expose the function arguments in the generated IP. We opted for \texttt{m\_axi} ports for the input and output arrays, and \texttt{s\_axilite} ports for all the other arguments, as they don't need a high bandwidth interface.
 \end{enumerate}
@@ -130,7 +130,7 @@ This first implementation achieved the following results:
 	\end{tabular}
 \end{table}
 
-As can be seen from the table, the FPGA implementation is significantly slower "out of the box", most likely due to the fact that the HLS compiler is not able to optimize the code much due to its intentionally generic nature.
+As can be seen from the table, the FPGA is significantly slower than the CPU "out of the box", most likely due to the fact that the HLS compiler is not able to optimize the code much due to its intentionally generic nature.
 
 \subsection{Iteration 4} \label{subsec:iter4}
 This was the last fully cross-platform iteration.
@@ -281,11 +281,11 @@ In a production environment we wouldn't recommend overriding the default clock f
 	\end{tabular}
 \end{table}
 
-We expected the throughput to scale linearly with the clock frequency, but the results show that the throughput actually increases at a slower rate than the clock frequency
+We expected the throughput to scale linearly with the clock frequency, but the results show that the throughput actually increases at a slower rate.
 
 \section{Results} \label{sec:results}
-We can see from the previous graph that the final iteration is able to vastly outperform the CPU implementation, especially for larger data sizes, with just a bit of tweaking and optimization, while causing only a small latency penalty for the smallest data size.
-The results also show that the performance of the FPGA implementation is somehow bottlenecked by the system, as the throughput doesn't scale linearly with the increase in PL clock frequency.
+We can see from the previous table that the final iteration is able to vastly outperform the CPU implementation, especially for larger data sizes, with just a bit of tweaking and optimization, while causing only a small latency penalty for the smallest data size.
+The results also show that the FPGA implementation is somehow bottlenecked by the system, as the throughput doesn't scale linearly with the increase in PL clock frequency.
 We suspect that the culprit is the DDR3 memory, which, as we mentioned before, has a maximum bandwidth of 1050 Mbps. In order to achieve a throughput of 441 Mbps, we actually need to transfer data at a speed of 882 Mbps from and to the memory, which is close to that maximum bandwidth.
 
 \section{Comparison with Other Hardware} \label{sec:conclusions}

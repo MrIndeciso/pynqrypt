@@ -60,5 +60,5 @@ tester.run_bench_suite()
 # sizes, printing the times along with how much it takes on the CPU
 ```
 
-## Can I trust any this code for my project?
+## Can I trust any of this code for my project?
 No

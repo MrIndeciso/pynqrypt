@@ -79,10 +79,10 @@
 
 \subsection{PYNQ}
 \begin{frame}
-    \frametitle{The hardware}
+    \frametitle{The Hardware}
 
     \begin{block}{PYNQ}
-    \onslide<2->PYNQ is an open-source project which provides a Python-based development environment for Xilinx Zynq SoCs.
+    \onslide<2->PYNQ is an open-source project which provides a Python-based development environment for Xilinx Zynq SoCs and Alveo accelerator boards.
     \end{block}
 
     \onslide<3->\begin{exampleblock}{Pros}
@@ -96,10 +96,10 @@
 
 \subsection{AES}
 \begin{frame}
-    \frametitle{Encryption algorithms}
+    \frametitle{Encryption Algorithms}
 
     \begin{block}{AES}
-    \onslide<2->AES is a symmetric-key algorithm for the encryption of electronic data. It is widely used in both industry and government to protect sensitive data.
+    \onslide<2->AES is a symmetric-key algorithm for secure encryption and decryption. It is widely used in both industry and government to protect sensitive data.
     \end{block}
 
     \onslide<3->\begin{block}{AES-CTR}
@@ -113,7 +113,7 @@
     \includegraphics[width=\textwidth]{imgs/CTR_encryption_scheme.png}
 \end{frame}
 
-\subsection{Software performance}
+\subsection{Software Performance}
 \begin{frame}
     \frametitle{Performance Considerations}
 
@@ -148,7 +148,7 @@
 
     Pynqrypt is a Python library for data encryption with the AES-CTR algorithm.
     \begin{itemize}
-        \onslide<2->\item Works on every platform supported by PYNQ (with the correct bitstream)
+        \onslide<2->\item Works on every platform supported by PYNQ (with the appropriate bitstream)
         \onslide<3->\item Compatible with other AES-CTR implementations
         \onslide<4->\item Fast
     \end{itemize}
@@ -156,7 +156,7 @@
 
 \subsection{Performance}
 \begin{frame}
-    \frametitle{Performance comparison}
+    \frametitle{Performance Comparison}
 
     \onslide<2->\begin{adjustbox}{max height=3in, center}
         \begin{tikzpicture}
@@ -193,11 +193,9 @@
 
     \onslide<4->\begin{lstlisting}
     data = np.frombuffer(..., np.uint8)
-    key = ...
-    nonce = ...
 
-    pynqrypt.set_key(key)
-    pynqrypt.set_nonce(nonce)
+    pynqrypt.set_key(...)
+    pynqrypt.set_nonce(...)
     pynqrypt.set_length(len(data))
     \end{lstlisting}
 \end{frame}
@@ -226,7 +224,7 @@
 
 \section{Demo}
 
-\subsection{Demo time}
+\subsection{Demo Time}
 \begin{frame}
     \frametitle{USBCrypt: let's see it in action!}
 \end{frame}
@@ -235,7 +233,7 @@
 
 \subsection{Issues}
 \begin{frame}
-    \frametitle{Issues encountered}
+    \frametitle{Issues Encountered}
 
     \begin{itemize}
         \onslide<2-> \item Issue: Vitis HLS doesn't work\\Solution: install Ubuntu 22.04 LTS
@@ -246,9 +244,40 @@
     \end{itemize}
 \end{frame}
 
-\subsection{Project takeaways}
+\subsection{Project Takeaways}
 \begin{frame}
-    \frametitle{}
+    \frametitle{Conclusions}
+
+    \begin{block}{Advantages}
+        \begin{itemize}
+            \onslide<2-> \item Low-power systems can greatly benefit from offloading intensive tasks to an FPGA accelerator
+            \onslide<3-> \item On-the-fly reconfigurability allows for multiple libraries to share the same hardware
+        \end{itemize}
+    \end{block}
+
+   \onslide<4->\begin{alertblock}{Drawbacks}
+        \begin{itemize}
+            \onslide<5-> \item Not every task is suitable for an FPGA, and some platform-specific optimization is required for best results
+            \onslide<6-> \item Hardware accelerated libraries might not always be a drop-in replacement, some code refactoring might be required
+        \end{itemize}
+   \end{alertblock}
+\end{frame}
+
+\begin{frame}
+    \frametitle{Personal Thoughts}
+
+    \begin{itemize}
+        \onslide<2-> \item Vitis HLS is magical, and makes it easy to write software for FPGAs...\\\onslide<3->... but it is also broken, badly documented and finicky to use.
+        \onslide<4-> \item Pynq is a great platform for development and prototyping, but it is not intuitive to use and the documentation is lacking.
+        \onslide<5-> \item Sometimes I felt like I was just throwing things at the wall and hoping they would stick.
+    \end{itemize}
+\end{frame}
+
+\subsection{End}
+\begin{frame}
+    \frametitle{The End}
+
+    \large Thanks for your attention!
 \end{frame}
 
 \end{document}
